@@ -1,0 +1,6 @@
+LoanType,defaulted_loans,outstanding_inr_m,recovered_inr_m,recovery_rate_pct,loss_given_default_pct
+Business,116,245.45,41.57,16.9,83.1
+Personal,107,61.31,10.82,17.6,82.4
+Education,30,30.11,5.32,17.7,82.3
+Auto,45,28.61,11.94,41.7,58.3
+Home,23,111.99,59.77,53.4,46.6

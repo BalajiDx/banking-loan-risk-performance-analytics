@@ -1,0 +1,179 @@
+// =====================================================================
+// Banking Loan Risk & Performance Analytics - DAX
+// Tables : Customers, Loans, Payments, Defaults, Calendar
+// NOTE   : Written against the data model in Dashboard Images/5.Data_Model.png.
+//          Paste into Power BI Desktop (Modeling > New measure / New column / New table).
+//          Not executed in this repo's build environment - check each result against
+//          02. SQL Scripts/Query Results/ after loading the data.
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// 1. CALENDAR TABLE  (mark as date table; relate Calendar[Date] -> Loans[OriginationDate])
+// ---------------------------------------------------------------------
+Calendar =
+ADDCOLUMNS (
+    CALENDAR ( DATE ( 2021, 1, 1 ), DATE ( 2024, 12, 31 ) ),
+    "Year",         YEAR ( [Date] ),
+    "Quarter",      "Q" & QUARTER ( [Date] ),
+    "Year-Quarter", YEAR ( [Date] ) & "-Q" & QUARTER ( [Date] ),
+    "Month No",     MONTH ( [Date] ),
+    "Month",        FORMAT ( [Date], "MMM yyyy" ),
+    "Month Sort",   YEAR ( [Date] ) * 100 + MONTH ( [Date] )
+)
+
+// ---------------------------------------------------------------------
+// 2. CALCULATED COLUMNS
+// ---------------------------------------------------------------------
+// Customers[Credit Band]
+Credit Band =
+SWITCH (
+    TRUE (),
+    Customers[CreditScore] < 580, "Poor (300-579)",
+    Customers[CreditScore] < 670, "Fair (580-669)",
+    Customers[CreditScore] < 740, "Good (670-739)",
+    Customers[CreditScore] < 800, "Very Good (740-799)",
+    "Exceptional (800-850)"
+)
+
+// Customers[Credit Band Sort]  -> use as "Sort by column" for Credit Band
+Credit Band Sort =
+SWITCH (
+    TRUE (),
+    Customers[CreditScore] < 580, 1,
+    Customers[CreditScore] < 670, 2,
+    Customers[CreditScore] < 740, 3,
+    Customers[CreditScore] < 800, 4,
+    5
+)
+
+// Loans[Tenure Band]
+Tenure Band =
+SWITCH (
+    TRUE (),
+    Loans[TenureMonths] <= 12,  "Up to 1 yr",
+    Loans[TenureMonths] <= 36,  "1-3 yrs",
+    Loans[TenureMonths] <= 60,  "3-5 yrs",
+    Loans[TenureMonths] <= 120, "5-10 yrs",
+    "Over 10 yrs"
+)
+Tenure Band Sort =
+SWITCH ( TRUE (), Loans[TenureMonths] <= 12, 1, Loans[TenureMonths] <= 36, 2,
+                  Loans[TenureMonths] <= 60, 3, Loans[TenureMonths] <= 120, 4, 5 )
+
+// Loans[Loan Size Band]
+Loan Size Band =
+SWITCH (
+    TRUE (),
+    Loans[LoanAmount] < 500000,  "Under 5 L",
+    Loans[LoanAmount] < 1000000, "5-10 L",
+    Loans[LoanAmount] < 2500000, "10-25 L",
+    Loans[LoanAmount] < 5000000, "25-50 L",
+    "50 L and above"
+)
+Loan Size Band Sort =
+SWITCH ( TRUE (), Loans[LoanAmount] < 500000, 1, Loans[LoanAmount] < 1000000, 2,
+                  Loans[LoanAmount] < 2500000, 3, Loans[LoanAmount] < 5000000, 4, 5 )
+
+// Loans[Loan To Income]  (uses the customer's annual income)
+Loan To Income = DIVIDE ( Loans[LoanAmount], RELATED ( Customers[AnnualIncome] ) )
+
+// Loans[LTI Band]
+LTI Band =
+SWITCH (
+    TRUE (),
+    Loans[Loan To Income] < 0.5, "Under 0.5x",
+    Loans[Loan To Income] < 1,   "0.5-1.0x",
+    Loans[Loan To Income] < 2,   "1.0-2.0x",
+    Loans[Loan To Income] < 4,   "2.0-4.0x",
+    "4.0x and above"
+)
+
+// ---------------------------------------------------------------------
+// 3. PORTFOLIO MEASURES
+// ---------------------------------------------------------------------
+Total Loans = DISTINCTCOUNT ( Loans[LoanID] )
+
+Total Disbursed = SUM ( Loans[LoanAmount] )
+
+Total Disbursed (M) = DIVIDE ( [Total Disbursed], 1000000 )
+
+Avg Interest Rate = AVERAGE ( Loans[InterestRate] ) / 100
+
+Weighted Avg Interest Rate =
+DIVIDE ( SUMX ( Loans, Loans[LoanAmount] * Loans[InterestRate] ), [Total Disbursed] ) / 100
+
+Active Loans = CALCULATE ( [Total Loans], Loans[Status] = "Active" )
+
+Closed Loans = CALCULATE ( [Total Loans], Loans[Status] = "Closed" )
+
+// ---------------------------------------------------------------------
+// 4. DEFAULT & LOSS MEASURES
+// ---------------------------------------------------------------------
+Defaulted Loans = CALCULATE ( [Total Loans], Loans[Status] = "Defaulted" )
+
+Default Rate = DIVIDE ( [Defaulted Loans], [Total Loans] )
+
+Portfolio Default Rate = CALCULATE ( [Default Rate], REMOVEFILTERS () )
+
+Default Rate vs Portfolio (pts) = ( [Default Rate] - [Portfolio Default Rate] ) * 100
+
+Outstanding at Default = SUM ( Defaults[OutstandingAtDefault] )
+
+Recovered Amount = SUM ( Defaults[RecoveryAmount] )
+
+Recovery Rate = DIVIDE ( [Recovered Amount], [Outstanding at Default] )
+
+Loss Given Default = 1 - [Recovery Rate]
+
+Credit Loss = [Outstanding at Default] - [Recovered Amount]
+
+// ---------------------------------------------------------------------
+// 5. INTEREST & RETURN MEASURES
+// ---------------------------------------------------------------------
+// Interest earned = for every instalment, the interest share of the amount actually paid
+Interest Earned =
+SUMX ( Payments, DIVIDE ( Payments[AmountPaid] * Payments[InterestDue], Payments[AmountDue] ) )
+
+Net Return = [Interest Earned] - [Credit Loss]
+
+Net Return % of Disbursed = DIVIDE ( [Net Return], [Total Disbursed] )
+
+// ---------------------------------------------------------------------
+// 6. REPAYMENT BEHAVIOUR
+// ---------------------------------------------------------------------
+Instalments = COUNTROWS ( Payments )
+
+Late Payment % =
+DIVIDE ( CALCULATE ( COUNTROWS ( Payments ), Payments[DaysLate] > 0 ), [Instalments] )
+
+Late 15+ Days % =
+DIVIDE ( CALCULATE ( COUNTROWS ( Payments ), Payments[DaysLate] >= 15 ), [Instalments] )
+
+Part-Paid % =
+DIVIDE (
+    COUNTROWS ( FILTER ( Payments, Payments[AmountPaid] < Payments[AmountDue] * 0.99 ) ),
+    [Instalments]
+)
+
+Avg Days Late = AVERAGE ( Payments[DaysLate] )
+
+// ---------------------------------------------------------------------
+// 7. TIME INTELLIGENCE  (Calendar must be a marked date table)
+// ---------------------------------------------------------------------
+Disbursed Prior Month =
+CALCULATE ( [Total Disbursed], DATEADD ( 'Calendar'[Date], -1, MONTH ) )
+
+Disbursed MoM % = DIVIDE ( [Total Disbursed] - [Disbursed Prior Month], [Disbursed Prior Month] )
+
+Cumulative Disbursed =
+CALCULATE (
+    [Total Disbursed],
+    FILTER ( ALL ( 'Calendar'[Date] ), 'Calendar'[Date] <= MAX ( 'Calendar'[Date] ) )
+)
+
+// ---------------------------------------------------------------------
+// 8. CARD TITLES / TOOLTIP TEXT
+// ---------------------------------------------------------------------
+Default Rate Insight =
+"Default rate " & FORMAT ( [Default Rate], "0.0%" ) &
+" vs portfolio " & FORMAT ( [Portfolio Default Rate], "0.0%" )

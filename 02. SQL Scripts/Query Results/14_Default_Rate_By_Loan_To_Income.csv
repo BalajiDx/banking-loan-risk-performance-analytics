@@ -1,0 +1,6 @@
+loan_to_income_band,loans,defaults,default_rate_pct
+1. Under 0.5x,495,20,4.04
+2. 0.5-1.0x,666,25,3.75
+3. 1.0-2.0x,1029,60,5.83
+4. 2.0-4.0x,869,82,9.44
+5. 4.0x and above,941,134,14.24

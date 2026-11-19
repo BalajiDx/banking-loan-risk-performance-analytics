@@ -1,0 +1,6 @@
+risk_rank,Region,loans,defaults,default_rate_pct,vs_portfolio_pts
+1,South,1027,96,9.35,1.32
+2,East,662,58,8.76,0.74
+3,West,935,74,7.91,-0.11
+4,North,946,68,7.19,-0.84
+5,Central,430,25,5.81,-2.21

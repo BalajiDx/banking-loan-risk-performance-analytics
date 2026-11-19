@@ -1,0 +1,6 @@
+loan_size_band,loans,defaults,default_rate_pct,avg_rate_pct
+1. Under 5 L,681,27,3.96,11.96
+2. 5-10 L,1027,58,5.65,11.44
+3. 10-25 L,1397,137,9.81,11.34
+4. 25-50 L,604,86,14.24,11.22
+5. 50 L and above,291,13,4.47,9.82

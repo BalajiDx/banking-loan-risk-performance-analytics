@@ -1,0 +1,2 @@
+total_loans,disbursed_inr_m,avg_interest_rate_pct,defaulted_loans,default_rate_pct,active_loans,closed_loans,outstanding_at_default_inr_m,recovered_inr_m
+4000,7117.6,11.34,321,8.03,3082,597,477.5,129.4
